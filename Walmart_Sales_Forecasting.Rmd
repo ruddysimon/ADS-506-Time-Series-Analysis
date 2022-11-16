@@ -9,6 +9,8 @@ date: "2022-11-15"
 
 library(tidyr)
 library(dplyr)
+library(corrplot)
+
 ```
 
 
@@ -24,10 +26,42 @@ walmart_df$Date <- as.Date(walmart_df$Date, format = "%d-%m-%Y")
 walmart_df[,"Year"] <- format(walmart_df[,"Date"],"%Y")
 walmart_df[,"Month"] <- format(walmart_df[,"Date"],"%m")
 walmart_df[,"Day"] <- format(walmart_df[,"Date"],"%d")
-walmart_df
+
+# Dataset dimension
+dim(walmart_df)
+
+#The dataset contains 6435 rows and 11 columns
 
 #Checking null vales
+colSums(is.na(walmart_df))
 
+#The dataset contains no missing values
+
+walmart_df
+```
+# Visualization
+
+```{r}
+par(mfrow=c(3,2))
+hist(walmart_df$Store, col = 'light blue', main = "Stores")
+hist(walmart_df$Temperature, col = 'light blue', main = "Temperature")
+hist(walmart_df$Fuel_Price, col = 'light blue', main = "Fuel Price")
+hist(walmart_df$CPI, col = 'light blue', main = "CPI")
+hist(walmart_df$Unemployment, col = 'light blue', main = "Unemployment")
+hist(walmart_df$Size, col = 'light blue', main = "Store Size")
+```
+
+# Correlation Matrix 
+
+```{r}
+corr = cor(walmart_df[, c(3:8)])
+corr
+
+corrplot(corr, method = 'number')
+```
+There is a moderate positive correlation between sales, fuel price and holidays, and negative correlation between sales, unemployment, CPI, and temperature. 
+
+```{r}
 
 ```
 

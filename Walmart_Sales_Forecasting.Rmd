@@ -43,13 +43,26 @@ walmart_df
 
 ```{r}
 par(mfrow=c(3,2))
-hist(walmart_df$Store, col = 'light blue', main = "Stores")
 hist(walmart_df$Temperature, col = 'light blue', main = "Temperature")
 hist(walmart_df$Fuel_Price, col = 'light blue', main = "Fuel Price")
 hist(walmart_df$CPI, col = 'light blue', main = "CPI")
 hist(walmart_df$Unemployment, col = 'light blue', main = "Unemployment")
-hist(walmart_df$Size, col = 'light blue', main = "Store Size")
+hist(walmart_df$Store, col = 'light blue', main = "Store Size")
+hist(walmart_df$Weekly_Sales, col = 'light blue', main = "Weekly_Sales")
+
 ```
+
+
+If our initial data does not fit the bell curve, we may log convert it to make it as "normal" as possible, enhancing the validity of the statistical analysis results. Our weekly sales data is clustered for the low weekly sales because it is skewed to the right. 
+
+
+```{r}
+hist(log(walmart_df$Weekly_Sales), col = 'blue',
+     main = "weekly sales log transformed",
+     xlab ='log(Weekly Sales)')
+
+```
+
 
 # Correlation Matrix 
 

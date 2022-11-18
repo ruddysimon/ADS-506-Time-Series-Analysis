@@ -10,7 +10,7 @@ date: "2022-11-15"
 library(tidyr)
 library(dplyr)
 library(corrplot)
-
+library(ggplot2)
 ```
 
 
@@ -37,7 +37,7 @@ colSums(is.na(walmart_df))
 
 #The dataset contains no missing values
 
-walmart_df
+summary(walmart_df)
 ```
 # Visualization
 
@@ -74,7 +74,39 @@ corrplot(corr, method = 'number')
 ```
 There is a moderate positive correlation between sales, fuel price and holidays, and negative correlation between sales, unemployment, CPI, and temperature. 
 
+# Weekly sales distribution in differnt month
+
 ```{r}
+ggplot(walmart_df, aes(x = Month,y = Weekly_Sales )) + 
+  geom_col() +
+  facet_wrap(~Year) + 
+  ggtitle("Weekly Sales Distribution in Different Months")
+```
+
+
+
+
+```{r}
+ggplot(walmart_df, aes(x=Store, y=Weekly_Sales, color=Holiday_Flag)) +
+  geom_point() 
+```
+
+
+
+
+```{r}
+ggplot(walmart_df, aes(x = Store,y = Weekly_Sales )) + 
+  geom_col() +
+  facet_wrap(~Year) + 
+  ggtitle("Weekly Sales Distribution in Different Stores")
+```
+
+Which stores have the most sells? 
+```{r}
+
+```
+
+
 
 ```
 

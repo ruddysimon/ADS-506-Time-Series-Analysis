@@ -11,6 +11,10 @@ library(tidyr)
 library(dplyr)
 library(corrplot)
 library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+library(forecast)
 ```
 
 
@@ -20,12 +24,12 @@ library(ggplot2)
 walmart_df <- read.csv("Dataset/walmart-sales-dataset-of-45stores.csv")
 walmart_df
 
-walmart_df$Date <- as.Date(walmart_df$Date, format = "%d-%m-%Y")
+#walmart_df$Date <- as.Date(walmart_df$Date, format = "%d-%m-%Y")
 
 # Seperating the Date
-walmart_df[,"Year"] <- format(walmart_df[,"Date"],"%Y")
-walmart_df[,"Month"] <- format(walmart_df[,"Date"],"%m")
-walmart_df[,"Day"] <- format(walmart_df[,"Date"],"%d")
+#walmart_df[,"Year"] <- format(walmart_df[,"Date"],"%Y")
+#walmart_df[,"Month"] <- format(walmart_df[,"Date"],"%m")
+#walmart_df[,"Day"] <- format(walmart_df[,"Date"],"%d")
 
 # Dataset dimension
 dim(walmart_df)
@@ -37,11 +41,16 @@ colSums(is.na(walmart_df))
 
 #The dataset contains no missing values
 
+
 summary(walmart_df)
+
 ```
 # Visualization
 
 ```{r}
+
+# Let's find out the distribution of the variables.
+
 par(mfrow=c(3,2))
 hist(walmart_df$Temperature, col = 'light blue', main = "Temperature")
 hist(walmart_df$Fuel_Price, col = 'light blue', main = "Fuel Price")
@@ -51,18 +60,40 @@ hist(walmart_df$Store, col = 'light blue', main = "Store Size")
 hist(walmart_df$Weekly_Sales, col = 'light blue', main = "Weekly_Sales")
 
 ```
+```{r}
+ggplot(data = walmart_df
+       ,aes(x=Weekly_Sales)) + 
+  geom_histogram(bins=50)
+```
+
+The distribution of sales is clearly significantly skewed to the right. In this situation, the log function is typically used to account for the distributional skew. In the case of conventional approaches like regression analysis, the distribution of noise included in the data is frequently believed to be a symmetric distribution such as a normal distribution, which is why the distribution bias needs to be corrected.
 
 
 If our initial data does not fit the bell curve, we may log convert it to make it as "normal" as possible, enhancing the validity of the statistical analysis results. Our weekly sales data is clustered for the low weekly sales because it is skewed to the right. 
 
 
 ```{r}
-hist(log(walmart_df$Weekly_Sales), col = 'blue',
+
+hist(log(walmart_df$Weekly_Sales), col = 'gray',
      main = "weekly sales log transformed",
      xlab ='log(Weekly Sales)')
 
 ```
+# Box plot distribution
+```{r}
+num_cols <- unlist(lapply(walmart_df, is.numeric))         # Identify numeric columns
 
+data_numeric <- walmart_df[, num_cols]
+data_numeric
+
+boxplot(data_numeric$Store)
+boxplot(data_numeric$Weekly_Sales)
+boxplot(data_numeric$Holiday_Flag)
+boxplot(data_numeric$Temperature)
+boxplot(data_numeric$Fuel_Price)
+boxplot(data_numeric$CPI)
+boxplot(data_numeric$Unemployment)
+```
 
 # Correlation Matrix 
 
@@ -85,7 +116,6 @@ ggplot(walmart_df, aes(x = Month,y = Weekly_Sales )) +
 
 
 
-
 ```{r}
 ggplot(walmart_df, aes(x=Store, y=Weekly_Sales, color=Holiday_Flag)) +
   geom_point() 
@@ -101,12 +131,86 @@ ggplot(walmart_df, aes(x = Store,y = Weekly_Sales )) +
   ggtitle("Weekly Sales Distribution in Different Stores")
 ```
 
-Which stores have the most sells? 
+Which store has the maximum sales? 
+
 ```{r}
+sales_store <- aggregate(Weekly_Sales ~ Store, data = walmart_df, sum)
+sales_store <- arrange(sales_store, desc(Weekly_Sales))
+sales_store
+```
+
+Store 20 has the maximum value/weekly sales among other stores. 
+
+```{r}
+sales_store$Store <- as.character(sales_store$Store)
+sales_store$Store <- factor(sales_store$Store, levels=unique(sales_store$Store))
+
+colnames(sales_store) <- c("Store","Weekly_Sales")
+barplot(sales_store$Weekly_Sales,names=sales_store$Store,
+        main="Weekly Sales by Store"
+)
 
 ```
 
+The highest sales are at store 20, with a total value of 301M. The revenue of shop 4 is 299M which considered as the second-largest store in terms of sales. Store 33 has the lowest sales which is around 37.17M. 
 
+```{r}
+
+#Creating Holidays Data dataframe
+Holiday_date <- c("12-02-2010", "11-02-2011", "10-02-2012", "08-02-2013","10-09-2010", "09-09-2011", "07-09-2012", "06-09-2013","26-11-2010", "25-11-2011", "23-11-2012", "29- 11-2013","31-12-2010", "30-12-2011", "28-12-2012", "27-12-2013")
+
+holidays <-c(rep("Super Bowl", 4), 
+           rep("Labour Day", 4),
+           rep("Thanksgiving", 4), 
+           rep("Christmas", 4))
+holidays
+
+Holidays_Data <- data.frame(holidays,Holiday_date)
+Holidays_Data
+
+#merging both dataframes
+walmart_df.2<-merge(walmart_df,Holidays_Data, by.x= "Date", by.y="Holiday_date", all.x = TRUE)
+walmart_df.2
+
+#Replacing null values in Event with No_Holiday 
+walmart_df.2$holidays = as.character(walmart_df.2$holidays) 
+walmart_df.2$holidays[is.na(walmart_df.2$holidays)]= "No_Holiday" 
+head(walmart_df.2)
+
+```
+
+```{r}
+Holiday_Sales<-aggregate(Weekly_Sales ~ Events, data = walmart_df.2, mean)
+Holiday_Sales
+```
+
+We have the most sales in the Thanksgiving each year and super bowl each year. 
+
+
+
+
+```{r}
+ggplot(walmart_df, aes(Date, Weekly_Sales)) +
+  geom_line() +
+  labs(title = "Weekly Sales vs Dates") +
+  theme_classic()
+```
+```{r}
+# plotting timeseries
+walmart.ts  = ts(walmart_df$Weekly_Sales, frequency = 52,
+                 start = c(2010,2), end = c(2012,10))
+plot(walmart.ts, xlab="Time/Year", 
+     ylab="Weekly Sales", bty='l')
+
+```
+The time series start in Feburary 2010, and ends in October 2012, and has frequency of 52 weeks per year. 
+
+```{r}
+
+walmart.lm <- tslm(walmart.ts ~ trend + I(trend^2))
+par(mfrow = c(1,1))
+plot(walmart.ts, xlab="Time/Year", ylab="Weekly Sales", bty="l")
+lines(walmart.lm$fitted, lwd=2)
 
 ```
 

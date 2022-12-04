@@ -15,6 +15,9 @@ library(tidyverse)
 library(tidyr)
 library(lubridate)
 library(forecast)
+library(tseries)
+library(zoo)
+
 ```
 
 
@@ -80,6 +83,7 @@ hist(log(walmart_df$Weekly_Sales), col = 'gray',
 
 ```
 # Box plot distribution
+
 ```{r}
 num_cols <- unlist(lapply(walmart_df, is.numeric))         # Identify numeric columns
 
@@ -152,6 +156,7 @@ barplot(sales_store$Weekly_Sales,names=sales_store$Store,
 
 ```
 
+
 The highest sales are at store 20, with a total value of 301M. The revenue of shop 4 is 299M which considered as the second-largest store in terms of sales. Store 33 has the lowest sales which is around 37.17M. 
 
 ```{r}
@@ -180,21 +185,12 @@ head(walmart_df.2)
 ```
 
 ```{r}
-Holiday_Sales<-aggregate(Weekly_Sales ~ Events, data = walmart_df.2, mean)
+Holiday_Sales<-aggregate(Weekly_Sales ~ holidays, data = walmart_df.2, mean)
 Holiday_Sales
 ```
 
-We have the most sales in the Thanksgiving each year and super bowl each year. 
+We have the most sales in the Thanksgiving and super bowl each year. 
 
-
-
-
-```{r}
-ggplot(walmart_df, aes(Date, Weekly_Sales)) +
-  geom_line() +
-  labs(title = "Weekly Sales vs Dates") +
-  theme_classic()
-```
 ```{r}
 # plotting timeseries
 walmart.ts  = ts(walmart_df$Weekly_Sales, frequency = 52,
@@ -203,7 +199,7 @@ plot(walmart.ts, xlab="Time/Year",
      ylab="Weekly Sales", bty='l')
 
 ```
-The time series start in Feburary 2010, and ends in October 2012, and has frequency of 52 weeks per year. 
+The time series start in February 2010, and ends in October 2012, and has frequency of 52 weeks per year. 
 
 ```{r}
 
@@ -213,4 +209,92 @@ plot(walmart.ts, xlab="Time/Year", ylab="Weekly Sales", bty="l")
 lines(walmart.lm$fitted, lwd=2)
 
 ```
+It is helpful to divide a time series into a systematic component and a non-systematic part in order to select appropriate forecasting techniques, which the componenets are level, trend, seasonality and noise. From the figure above we can understand that the weekly sales for walmart organization has constant trend with additive seasonality. 
 
+```{r}
+walmart.ma = ma(walmart.ts, order = 48, centre = T) # As it is recorded yearly, there are 48 data points recorded per year, and we use a moving average window of 48.
+plot(as.ts(walmart.ts))
+lines(walmart.ma)
+plot(as.ts(walmart.ma))
+```
+
+
+```{r}
+decompose_walmart = decompose(walmart.ts, "additive")
+ 
+plot(as.ts(decompose_walmart$seasonal))
+plot(as.ts(decompose_walmart$trend))
+plot(as.ts(decompose_walmart$random))
+plot(decompose_walmart)
+```
+
+
+# Modeling Time Series
+
+Standard statistical models presuppose that observations are independent. This premise is false for time series. The reliance that only the past up to time t allows us to anticipate what will happen at time t+k is what we wish to model in time series. We refer to this type of dependence—where each observation is connected to itself at a prior time—as autocorrelation. If autocorrelation exists, the dependent variable must be appropriately delayed as predictive variables in the model.
+
+
+## Autocorrelation
+
+```{r}
+
+par(mfrow = c(1,1))
+
+acf = acf(walmart.ts, main='ACF Plot', lag.max=100)
+pacf = pacf(walmart.ts, main='PACF Plot', lag.max=100)
+
+#Augmented Dickey-Fuller(ADF) Test
+print(adf.test(walmart.ts))
+
+```
+
+
+
+# Data partitioning
+
+```{r}
+walmart_df$Date[1]
+walmart_df$Date[6435]
+```
+
+
+```{r}
+
+# Partition the data into training and validation periods, so that years 2010 - October 2011 are the training period and the rest of the data is for validation
+
+#traindf <- window(walmart.ts, start = c(2010,5), end = c(2011,10))
+
+#testdf <- window(walmart.ts, start = c(2011,11))
+#testdf
+
+
+
+nValid <- 52
+nTrain <- length(walmart.ts) - nValid
+train.ts_df <- window(walmart.ts, start = c(2010, 5), end = c(2010, nTrain))
+train.ts_df
+
+valid.ts_df <- window(walmart.ts, start = c(2010, nTrain + 1), end = c(2012,10)) 
+valid.ts_df
+
+```
+
+### Moving Average
+
+```{r}
+ma.walmart <- rollmean(walmart.ts, k = 12, align = "right") 
+
+walmart.last.ma <- tail(ma.walmart, 1) 
+
+ma.trailing.pred <- ts(rep(walmart.last.ma, nValid), start = c(2010, nTrain + 1), end = c(2012,10), freq = 52) 
+
+plot(train.ts_df, ylab = "Walmart Weekly Sales", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2010,2012.25), main ="")
+
+axis(1, at = seq(2010, 2012, 1), labels = format(seq(2010, 2012, 1)))
+
+lines(ma.walmart, lwd = 2, col = "blue") 
+
+lines(ma.trailing.pred, lwd = 2, col = "blue", lty = 2) 
+
+lines(valid.ts_df) 
+```

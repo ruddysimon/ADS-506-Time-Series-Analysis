@@ -6,7 +6,7 @@ date: "2022-11-15"
 
 ```{r}
 # import dependencies
-
+library(moments)
 library(tidyr)
 library(dplyr)
 library(corrplot)
@@ -26,6 +26,7 @@ library(zoo)
 
 walmart_df <- read.csv("Dataset/walmart-sales-dataset-of-45stores.csv")
 walmart_df
+
 
 #walmart_df$Date <- as.Date(walmart_df$Date, format = "%d-%m-%Y")
 
@@ -48,6 +49,7 @@ colSums(is.na(walmart_df))
 summary(walmart_df)
 
 ```
+
 # Visualization
 
 ```{r}
@@ -63,14 +65,24 @@ hist(walmart_df$Store, col = 'light blue', main = "Store Size")
 hist(walmart_df$Weekly_Sales, col = 'light blue', main = "Weekly_Sales")
 
 ```
+
+
 ```{r}
-ggplot(data = walmart_df
-       ,aes(x=Weekly_Sales)) + 
-  geom_histogram(bins=50)
+par(mfrow=c(1,1))
+hist(walmart_df$Weekly_Sales, main = "Weekly Sales Distribution",xlab = "Weekly Sales")
+
+
 ```
 
-The distribution of sales is clearly significantly skewed to the right. In this situation, the log function is typically used to account for the distributional skew. In the case of conventional approaches like regression analysis, the distribution of noise included in the data is frequently believed to be a symmetric distribution such as a normal distribution, which is why the distribution bias needs to be corrected.
+```{r}
+paste("Weekly_Sales has a skewness of", skewness(walmart_df$Weekly_Sales))
+paste("Weekly_Sales has a kurtosis of", kurtosis(walmart_df$Weekly_Sales))
 
+```
+
+A skewness value greater than 1 or less than -1 indicates a highly skewed distribution. A value between 0.5 and 1 or -0.5 and -1 is moderately skewed. A value between -0.5 and 0.5 indicates that the distribution is fairly symmetrical.
+
+The distribution of sales is clearly significantly skewed to the right. In this situation, the log function is typically used to account for the distributional skew. In the case of conventional approaches like regression analysis, the distribution of noise included in the data is frequently believed to be a symmetric distribution such as a normal distribution, which is why the distribution bias needs to be corrected.
 
 If our initial data does not fit the bell curve, we may log convert it to make it as "normal" as possible, enhancing the validity of the statistical analysis results. Our weekly sales data is clustered for the low weekly sales because it is skewed to the right. 
 
@@ -78,7 +90,7 @@ If our initial data does not fit the bell curve, we may log convert it to make i
 ```{r}
 
 hist(log(walmart_df$Weekly_Sales), col = 'gray',
-     main = "weekly sales log transformed",
+     main = "Weekly Sales log Transformed",
      xlab ='log(Weekly Sales)')
 
 ```
@@ -103,9 +115,9 @@ boxplot(data_numeric$Unemployment)
 
 ```{r}
 corr = cor(walmart_df[, c(3:8)])
-corr
+#view(corr)
 
-corrplot(corr, method = 'number')
+corrplot(corr, method = "color", cl.pos = 'n', rect.col = "black",  tl.col = "indianred4", addCoef.col = "black", number.digits = 2, number.cex = 0.60, tl.cex = 0.7, cl.cex = 1, col = colorRampPalette(c("blue","white","red"))(100))
 ```
 There is a moderate positive correlation between sales, fuel price and holidays, and negative correlation between sales, unemployment, CPI, and temperature. 
 
@@ -150,8 +162,14 @@ sales_store$Store <- as.character(sales_store$Store)
 sales_store$Store <- factor(sales_store$Store, levels=unique(sales_store$Store))
 
 colnames(sales_store) <- c("Store","Weekly_Sales")
+
+par(mfrow = c(1,1))
+
 barplot(sales_store$Weekly_Sales,names=sales_store$Store,
-        main="Weekly Sales by Store"
+        main="Weekly Sales by Store",
+        xlab = "Store",
+        ylab = "Weekly Sales",
+        border="#69b3a2"
 )
 
 ```
@@ -209,7 +227,7 @@ plot(walmart.ts, xlab="Time/Year", ylab="Weekly Sales", bty="l")
 lines(walmart.lm$fitted, lwd=2)
 
 ```
-It is helpful to divide a time series into a systematic component and a non-systematic part in order to select appropriate forecasting techniques, which the componenets are level, trend, seasonality and noise. From the figure above we can understand that the weekly sales for walmart organization has constant trend with additive seasonality. 
+It is helpful to divide a time series into a systematic component and a non-systematic part in order to select appropriate forecasting techniques, which the components are level, trend, seasonality and noise. From the figure above we can understand that the weekly sales for walmart organization has constant trend with additive seasonality. 
 
 ```{r}
 walmart.ma = ma(walmart.ts, order = 48, centre = T) # As it is recorded yearly, there are 48 data points recorded per year, and we use a moving average window of 48.
@@ -222,9 +240,7 @@ plot(as.ts(walmart.ma))
 ```{r}
 decompose_walmart = decompose(walmart.ts, "additive")
  
-plot(as.ts(decompose_walmart$seasonal))
-plot(as.ts(decompose_walmart$trend))
-plot(as.ts(decompose_walmart$random))
+
 plot(decompose_walmart)
 ```
 
@@ -247,7 +263,7 @@ pacf = pacf(walmart.ts, main='PACF Plot', lag.max=100)
 print(adf.test(walmart.ts))
 
 ```
-
+The p-value is obtained is less than significance level of 0.05 and the ADF statistic is -5.457, we reject the null hypothesis and consider the time series as a stationary. 
 
 
 # Data partitioning
@@ -262,16 +278,9 @@ walmart_df$Date[6435]
 
 # Partition the data into training and validation periods, so that years 2010 - October 2011 are the training period and the rest of the data is for validation
 
-#traindf <- window(walmart.ts, start = c(2010,5), end = c(2011,10))
-
-#testdf <- window(walmart.ts, start = c(2011,11))
-#testdf
-
-
-
 nValid <- 52
 nTrain <- length(walmart.ts) - nValid
-train.ts_df <- window(walmart.ts, start = c(2010, 5), end = c(2010, nTrain))
+train.ts_df <- window(walmart.ts, start = c(2010, 2), end = c(2010, nTrain))
 train.ts_df
 
 valid.ts_df <- window(walmart.ts, start = c(2010, nTrain + 1), end = c(2012,10)) 
@@ -279,22 +288,29 @@ valid.ts_df
 
 ```
 
-### Moving Average
+# Build ARIMA model
+
 
 ```{r}
-ma.walmart <- rollmean(walmart.ts, k = 12, align = "right") 
-
-walmart.last.ma <- tail(ma.walmart, 1) 
-
-ma.trailing.pred <- ts(rep(walmart.last.ma, nValid), start = c(2010, nTrain + 1), end = c(2012,10), freq = 52) 
-
-plot(train.ts_df, ylab = "Walmart Weekly Sales", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2010,2012.25), main ="")
-
-axis(1, at = seq(2010, 2012, 1), labels = format(seq(2010, 2012, 1)))
-
-lines(ma.walmart, lwd = 2, col = "blue") 
-
-lines(ma.trailing.pred, lwd = 2, col = "blue", lty = 2) 
-
-lines(valid.ts_df) 
+# We apply this procedure to adjust the seasonality
+walmart.ts %>%
+  stl(s.window='periodic') %>% seasadj() -> eeadj.walmart
+autoplot(eeadj.walmart)
 ```
+
+
+```{r}
+# Now we take a first difference of the weekly sales to remove trend and seasonality
+eeadj.walmart %>%
+  diff() %>% 
+  ggtsdisplay(main="")
+
+```
+The AR(5) model is suggested by the PACF in the above figure. An ARIMA is thus a first candidate model (5,1,0)
+
+```{r}
+model1 <- Arima(eeadj.walmart, order=c(5,1,0))
+model1
+
+```
+

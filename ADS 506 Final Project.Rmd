@@ -40,7 +40,7 @@ library(zoo)
 ```
 ```{r}
 # Importing the dataset
-walmart_df <- read.csv("walmart-sales-dataset-of-45stores.csv")
+walmart_df <- read.csv("Dataset/walmart-sales-dataset-of-45stores.csv")
 head(walmart_df)
 ```
 ```{r}
@@ -103,6 +103,38 @@ corrplot(corr, method = 'number')
 
 There is a moderate positive correlation between sales, fuel price and holidays, and negative correlation between sales, unemployment, CPI, and temperature. 
 
+
+
+
+```{r}
+#Creating Holidays Data dataframe
+Holiday_date <- c("12-02-2010", "11-02-2011", "10-02-2012", "08-02-2013","10-09-2010", "09-09-2011", "07-09-2012", "06-09-2013","26-11-2010", "25-11-2011", "23-11-2012", "29- 11-2013","31-12-2010", "30-12-2011", "28-12-2012", "27-12-2013")
+holidays <-c(rep("Super Bowl", 4), 
+           rep("Labour Day", 4),
+           rep("Thanksgiving", 4), 
+           rep("Christmas", 4))
+holidays
+
+
+Holidays_Data <- data.frame(holidays,Holiday_date)
+Holidays_Data
+
+#merging both dataframes
+walmart_df.2<-merge(walmart_df,Holidays_Data, by.x= "Date", by.y="Holiday_date", all.x = TRUE)
+head(walmart_df.2)
+
+
+#Replacing null values in holidays with No_Holiday 
+walmart_df.2$holidays = as.character(walmart_df.2$holidays) 
+walmart_df.2$holidays[is.na(walmart_df.2$holidays)]= "No_Holiday" 
+head(walmart_df.2)
+
+Holiday_Sales<-aggregate(Weekly_Sales ~ holidays, data = walmart_df.2, mean)
+Holiday_Sales
+```
+We have the most sales in the Thanksgiving and super bowl each year. 
+
+
 # Weekly sales distribution in differnt month
 
 ```{r}
@@ -127,39 +159,7 @@ sales_store$Store <- factor(sales_store$Store, levels=unique(sales_store$Store))
 colnames(sales_store) <- c("Store","Weekly_Sales")
 barplot(sales_store$Weekly_Sales,names=sales_store$Store, main="Weekly Sales by Store")
 ```
-```{r}
-#Creating Holidays Data dataframe
-Holiday_date <- c("12-02-2010", "11-02-2011", "10-02-2012", "08-02-2013","10-09-2010", "09-09-2011", "07-09-2012", "06-09-2013","26-11-2010", "25-11-2011", "23-11-2012", "29- 11-2013","31-12-2010", "30-12-2011", "28-12-2012", "27-12-2013")
-holidays <-c(rep("Super Bowl", 4), 
-           rep("Labour Day", 4),
-           rep("Thanksgiving", 4), 
-           rep("Christmas", 4))
-holidays
-```
-```{r}
-Holidays_Data <- data.frame(holidays,Holiday_date)
-Holidays_Data
-```
-```{r}
-#merging both dataframes
-walmart_df.2<-merge(walmart_df,Holidays_Data, by.x= "Date", by.y="Holiday_date", all.x = TRUE)
-head(walmart_df.2)
-```
 
-
-```{r}
-#Replacing null values in Event with No_Holiday 
-walmart_df.2$holidays = as.character(walmart_df.2$holidays) 
-walmart_df.2$holidays[is.na(walmart_df.2$holidays)]= "No_Holiday" 
-head(walmart_df.2)
-```
-
-```{r}
-Holiday_Sales<-aggregate(Weekly_Sales ~ holidays, data = walmart_df.2, mean)
-Holiday_Sales
-```
-
-We have the most sales in the Thanksgiving and super bowl each year. 
 
 ```{r}
 # plotting timeseries
@@ -284,9 +284,15 @@ model1 <- Arima(eeadj.walmart, order=c(5,1,0))
 model1
 ```
 
-#arima.pred <- forecast(model1, h=nValid)
-#accuracy(arima.pred, valid.ts_df)
+
 ```{r}
+
+arima.pred <- forecast(model1, h=nValid)
+arima.pred
+
+#accuracy(arima.pred, valid.ts_df)
+
+
 accuracy(model1)
 ```
 
@@ -304,6 +310,7 @@ model.nn
 
 ```{r}
 nn.pred <- forecast(model.nn, h=nValid)
+nn.pred
 accuracy(nn.pred, valid.ts_df)
 ```
 

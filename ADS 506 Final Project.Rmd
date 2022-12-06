@@ -1,0 +1,346 @@
+---
+title: "ADS 506 Final Project"
+output:
+  pdf_document: default
+  html_document: default
+date: '2022-12-05'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+library(corrplot)
+library(caret)
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+library(forecast)
+library(tseries)
+library(zoo)
+```
+```{r}
+# Importing the dataset
+walmart_df <- read.csv("walmart-sales-dataset-of-45stores.csv")
+head(walmart_df)
+```
+```{r}
+dim(walmart_df)
+```
+```{r}
+#The dataset contains 6435 rows and 11 columns
+#Checking null vales
+colSums(is.na(walmart_df))
+#The dataset contains no missing values
+
+```
+
+```{r}
+summary(walmart_df)
+```
+
+```{r}
+par(mfrow=c(3,2))
+hist(walmart_df$Temperature, col = 'light blue', main = "Temperature")
+hist(walmart_df$Fuel_Price, col = 'light blue', main = "Fuel Price")
+hist(walmart_df$CPI, col = 'light blue', main = "CPI")
+hist(walmart_df$Unemployment, col = 'light blue', main = "Unemployment")
+hist(walmart_df$Store, col = 'light blue', main = "Store Size")
+hist(walmart_df$Weekly_Sales, col = 'light blue', main = "Weekly_Sales")
+```
+```{r}
+ggplot(data = walmart_df,aes(x=Weekly_Sales)) + geom_histogram(bins=50)
+```
+```{r}
+hist(log(walmart_df$Weekly_Sales), col = 'gray',
+     main = "weekly sales log transformed",
+     xlab ='log(Weekly Sales)')
+```
+```{r}
+num_cols <- unlist(lapply(walmart_df, is.numeric))         # Identify numeric columns
+data_numeric <- walmart_df[, num_cols]
+head(data_numeric)
+```
+```{r}
+boxplot(data_numeric$Store)
+boxplot(data_numeric$Weekly_Sales)
+boxplot(data_numeric$Holiday_Flag)
+boxplot(data_numeric$Temperature)
+boxplot(data_numeric$Fuel_Price)
+boxplot(data_numeric$CPI)
+boxplot(data_numeric$Unemployment)
+```
+# Correlation Matrix 
+
+```{r}
+corr = cor(walmart_df[, c(3:8)])
+corr
+```
+
+```{r}
+corrplot(corr, method = 'number')
+```
+
+
+There is a moderate positive correlation between sales, fuel price and holidays, and negative correlation between sales, unemployment, CPI, and temperature. 
+
+# Weekly sales distribution in differnt month
+
+```{r}
+walmart_df$Date <- as.Date(walmart_df$Date, format = "%d-%m-%Y")
+walmart_df[,"Year"] <- format(walmart_df[,"Date"],"%Y")
+walmart_df[,"Month"] <- format(walmart_df[,"Date"],"%m")
+ggplot(walmart_df, aes(x = Month,y = Weekly_Sales )) + geom_col() + facet_wrap(~Year) + ggtitle("Weekly Sales Distribution in Different Months")
+```
+```{r}
+ggplot(walmart_df, aes(x=Store, y=Weekly_Sales, color=Holiday_Flag)) +
+  geom_point() 
+```
+
+```{r}
+sales_store <- aggregate(Weekly_Sales ~ Store, data = walmart_df, sum)
+sales_store <- arrange(sales_store, desc(Weekly_Sales))
+sales_store
+```
+```{r}
+sales_store$Store <- as.character(sales_store$Store)
+sales_store$Store <- factor(sales_store$Store, levels=unique(sales_store$Store))
+colnames(sales_store) <- c("Store","Weekly_Sales")
+barplot(sales_store$Weekly_Sales,names=sales_store$Store, main="Weekly Sales by Store")
+```
+```{r}
+#Creating Holidays Data dataframe
+Holiday_date <- c("12-02-2010", "11-02-2011", "10-02-2012", "08-02-2013","10-09-2010", "09-09-2011", "07-09-2012", "06-09-2013","26-11-2010", "25-11-2011", "23-11-2012", "29- 11-2013","31-12-2010", "30-12-2011", "28-12-2012", "27-12-2013")
+holidays <-c(rep("Super Bowl", 4), 
+           rep("Labour Day", 4),
+           rep("Thanksgiving", 4), 
+           rep("Christmas", 4))
+holidays
+```
+```{r}
+Holidays_Data <- data.frame(holidays,Holiday_date)
+Holidays_Data
+```
+```{r}
+#merging both dataframes
+walmart_df.2<-merge(walmart_df,Holidays_Data, by.x= "Date", by.y="Holiday_date", all.x = TRUE)
+head(walmart_df.2)
+```
+
+
+```{r}
+#Replacing null values in Event with No_Holiday 
+walmart_df.2$holidays = as.character(walmart_df.2$holidays) 
+walmart_df.2$holidays[is.na(walmart_df.2$holidays)]= "No_Holiday" 
+head(walmart_df.2)
+```
+
+```{r}
+Holiday_Sales<-aggregate(Weekly_Sales ~ holidays, data = walmart_df.2, mean)
+Holiday_Sales
+```
+
+We have the most sales in the Thanksgiving and super bowl each year. 
+
+```{r}
+# plotting timeseries
+walmart.ts  = ts(walmart_df$Weekly_Sales, frequency = 52,
+                 start = c(2010,2), end = c(2012,10))
+plot(walmart.ts, xlab="Time/Year", 
+     ylab="Weekly Sales", bty='l')
+```
+The time series start in February 2010, and ends in October 2012, and has frequency of 52 weeks per year. 
+```{r}
+walmart.lm <- tslm(walmart.ts ~ trend + I(trend^2))
+par(mfrow = c(1,1))
+plot(walmart.ts, xlab="Time/Year", ylab="Weekly Sales", bty="l")
+lines(walmart.lm$fitted, lwd=2)
+```
+It is helpful to divide a time series into a systematic component and a non-systematic part in order to select appropriate forecasting techniques, which the componenets are level, trend, seasonality and noise. From the figure above we can understand that the weekly sales for walmart organization has constant trend with additive seasonality. 
+
+
+```{r}
+walmart.ma = ma(walmart.ts, order = 48, centre = T) # As it is recorded yearly, there are 48 data points recorded per year, and we use a moving average window of 48.
+plot(as.ts(walmart.ts))
+lines(walmart.ma)
+plot(as.ts(walmart.ma))
+```
+```{r}
+decompose_walmart = decompose(walmart.ts, "additive")
+ 
+plot(as.ts(decompose_walmart$seasonal))
+plot(as.ts(decompose_walmart$trend))
+plot(as.ts(decompose_walmart$random))
+plot(decompose_walmart)
+```
+
+# Modeling Time Series
+
+Standard statistical models presuppose that observations are independent. This premise is false for time series. The reliance that only the past up to time t allows us to anticipate what will happen at time t+k is what we wish to model in time series. We refer to this type of dependence—where each observation is connected to itself at a prior time—as autocorrelation. If autocorrelation exists, the dependent variable must be appropriately delayed as predictive variables in the model.
+
+
+## Autocorrelation
+
+```{r}
+par(mfrow = c(1,1))
+acf = acf(walmart.ts, main='ACF Plot', lag.max=100)
+pacf = pacf(walmart.ts, main='PACF Plot', lag.max=100)
+#Augmented Dickey-Fuller(ADF) Test
+print(adf.test(walmart.ts))
+```
+# Data partitioning
+
+```{r}
+walmart_df$Date[1]
+walmart_df$Date[6435]
+```
+# Partition the data into training and validation periods, so that years 2010 - October 2011 are the training period and the rest of the data is for validation
+#traindf <- window(walmart.ts, start = c(2010,5), end = c(2011,10))
+#testdf <- window(walmart.ts, start = c(2011,11))
+#testdf
+
+```{r}
+nValid <- 52
+nTrain <- length(walmart.ts) - nValid
+train.ts_df <- window(walmart.ts, start = c(2010, 5), end = c(2010, nTrain))
+train.ts_df
+```
+
+```{r}
+valid.ts_df <- window(walmart.ts, start = c(2010, nTrain + 1), end = c(2012,10)) 
+valid.ts_df
+```
+
+### Moving Average
+
+```{r}
+ma.walmart <- rollmean(walmart.ts, k = 12, align = "right") 
+walmart.last.ma <- tail(ma.walmart, 1) 
+ma.trailing.pred <- ts(rep(walmart.last.ma, nValid), start = c(2010, nTrain + 1), end = c(2012,10), freq = 52) 
+plot(train.ts_df, ylab = "Walmart Weekly Sales", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2010,2012.25), main ="")
+axis(1, at = seq(2010, 2012, 1), labels = format(seq(2010, 2012, 1)))
+lines(ma.walmart, lwd = 2, col = "blue") 
+lines(ma.trailing.pred, lwd = 2, col = "blue", lty = 2) 
+lines(valid.ts_df) 
+```
+## Regression
+```{r}
+# series linear model
+train.lm <- tslm(train.ts_df ~ trend)
+summary(train.lm)
+```
+```{r}
+plot(train.ts_df, ylab="Weekly Sales", bty="l")
+lines(train.lm$fitted.values, lwd=2)
+```
+```{r}
+train.lm.pred <- forecast(train.lm, h=nValid, level=0)
+accuracy(train.lm.pred, valid.ts_df)
+```
+
+```{r}
+# residuals plot
+qqnorm(train.lm$residuals)
+qqline(train.lm$residuals)
+```
+
+
+## ARIMA Model
+```{r}
+walmart.ts %>%
+  stl(s.window='periodic') %>% seasadj() -> eeadj.walmart
+autoplot(eeadj.walmart)
+```
+
+```{r}
+# Now we take a first difference of the weekly sales to remove trend and seasonality
+eeadj.walmart %>%
+  diff() %>% 
+  ggtsdisplay(main="")
+```
+The AR(5) model is suggested by the PACF in the above figure. An ARIMA is thus a first candidate model (5,1,0)
+
+```{r}
+model1 <- Arima(eeadj.walmart, order=c(5,1,0))
+model1
+```
+
+#arima.pred <- forecast(model1, h=nValid)
+#accuracy(arima.pred, valid.ts_df)
+```{r}
+accuracy(model1)
+```
+
+
+
+## neural network
+```{r}
+model.nn <- nnetar(train.ts_df, repeats=20)
+summary(model.nn$model[[1]])
+```
+
+```{r}
+model.nn
+```
+
+```{r}
+nn.pred <- forecast(model.nn, h=nValid)
+accuracy(nn.pred, valid.ts_df)
+```
+
+```{r}
+plot(train.ts_df, bty="l", xaxt="n", lty=1, ylab="Weekly Sales")
+axis(1, at = seq(2005, 2015, 1), labels=format(seq(2005,2015,1)))
+lines(nn.pred$fitted, lwd=2, col="blue")
+lines(nn.pred$mean, lwd=2, col="blue", lty=2)
+lines(valid.ts_df)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
